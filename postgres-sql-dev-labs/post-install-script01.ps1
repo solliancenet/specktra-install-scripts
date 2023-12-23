@@ -104,13 +104,17 @@ InstallChrome
 
 InstallNotepadPP
 
-InstallDocker
+InstallPostgres16
+
+InstallpgAdmin
 
 InstallGit
         
 InstallAzureCli
 
-InstallOffice
+InstallVisualStudioCode
+
+InstallPython "3.11"
 
 Uninstall-AzureRm -ea SilentlyContinue
 
@@ -118,51 +122,16 @@ CreateLabFilesDirectory
 
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
 
-cd "c:\labfiles";
-
-CreateCredFile $azureUsername $azurePassword $azureTenantID $azureSubscriptionID $deploymentId $odlId
-
-. C:\LabFiles\AzureCreds.ps1
-
-$userName = $AzureUserName                # READ FROM FILE
-$password = $AzurePassword                # READ FROM FILE
-$clientId = $TokenGeneratorClientId       # READ FROM FILE
-$global:sqlPassword = $AzureSQLPassword          # READ FROM FILE
-
-$securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
-$cred = new-object -typename System.Management.Automation.PSCredential -argumentlist $userName, $SecurePassword
-
-Connect-AzAccount -Credential $cred | Out-Null
- 
-# Template deployment
-$rg = (Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -like "*PG-DEV-*" });
-$resourceGroupName = $rg.ResourceGroupName
-$region = $rg.Location;
-$deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
-
-$resourceName = "pgdev$deploymentId";
-
-$branchName = "master";
-$workshopName = "security-defender-workshop-400";
-$repoUrl = "solliancenet/security-defender-workshop-400";
+$organization = "solliancenet"
+$workshopName = "microsoft-postgres-docs-project";
 
 #download the git repo...
 Write-Host "Download Git repo." -ForegroundColor Green -Verbose
-git clone https://github.com/solliancenet/$workshopName.git $workshopName
+git clone https://github.com/$organization/$workshopName.git $workshopName
 
-$parametersFile = "c:\labfiles\$workshopName\artifacts\environment-setup\spektra\deploy.parameters.post.json"
-$content = Get-Content -Path $parametersFile -raw;
+InstallPostgres14
 
-$content = $content.Replace("GET-AZUSER-PASSWORD",$azurepassword);
-$content = $content | ForEach-Object {$_ -Replace "GET-AZUSER-UPN", "$AzureUsername"};
-$content = $content | ForEach-Object {$_ -Replace "GET-AZUSER-PASSWORD", "$AzurePassword"};
-$content = $content | ForEach-Object {$_ -Replace "GET-ODL-ID", "$deploymentId"};
-$content = $content | ForEach-Object {$_ -Replace "GET-DEPLOYMENT-ID", "$deploymentId"};
-$content = $content | ForEach-Object {$_ -Replace "GET-REGION", $region};
-$content = $content | ForEach-Object {$_ -Replace "ARTIFACTS-LOCATION", "https://raw.githubusercontent.com/$repoUrl/$branchName/artifacts/environment-setup/automation/"};
-$content | Set-Content -Path "$($parametersFile).json";
-
-Write-Host "Starting main deployment." -ForegroundColor Green -Verbose
-New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateUri "https://raw.githubusercontent.com/solliancenet/$workshopName/$branchName/artifacts/environment-setup/automation/00-template.json" -TemplateParameterFile "$($parametersFile).json"
+#this takes a long time...
+InstallDockerDesktop
 
 Stop-Transcript
