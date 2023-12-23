@@ -98,15 +98,15 @@ EnableIEFileDownload
 
 InstallChocolaty
 
+InstallpgAdmin
+
+InstallPostgres16
+
 InstallAzPowerShellModule
 
 InstallChrome
 
 InstallNotepadPP
-
-InstallPostgres16
-
-InstallpgAdmin
 
 InstallGit
         
