@@ -51,8 +51,8 @@ function CreateLabFilesDirectory
 function CreateCredFile($azureUsername, $azurePassword, $azureTenantID, $azureSubscriptionID, $deploymentId)
 {
   $WebClient = New-Object System.Net.WebClient
-  $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-400/master/artifacts/environment-setup/spektra/AzureCreds.txt","C:\LabFiles\AzureCreds.txt")
-  $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-400/master/artifacts/environment-setup/spektra/AzureCreds.ps1","C:\LabFiles\AzureCreds.ps1")
+  $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/specktra-install-scripts/main/common/AzureCreds.txt","C:\LabFiles\AzureCreds.txt")
+  $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/specktra-install-scripts/main/common/AzureCreds.ps1","C:\LabFiles\AzureCreds.ps1")
 
   (Get-Content -Path "C:\LabFiles\AzureCreds.txt") | ForEach-Object {$_ -Replace "ClientIdValue", ""} | Set-Content -Path "C:\LabFiles\AzureCreds.ps1"
   (Get-Content -Path "C:\LabFiles\AzureCreds.txt") | ForEach-Object {$_ -Replace "AzureUserNameValue", "$azureUsername"} | Set-Content -Path "C:\LabFiles\AzureCreds.txt"
@@ -135,12 +135,12 @@ $cred = new-object -typename System.Management.Automation.PSCredential -argument
 Connect-AzAccount -Credential $cred | Out-Null
  
 # Template deployment
-$rg = (Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -like "*AZDEFEND*-02" });
+$rg = (Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -like "*PG-DEV-*" });
 $resourceGroupName = $rg.ResourceGroupName
 $region = $rg.Location;
 $deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
 
-$resourceName = "wssecurity$deploymentId";
+$resourceName = "pgdev$deploymentId";
 
 $branchName = "master";
 $workshopName = "security-defender-workshop-400";
