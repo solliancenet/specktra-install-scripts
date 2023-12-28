@@ -29,9 +29,32 @@ function ConfigurePhp($iniPath)
       $content = $content.replace(";extension=fileinfo","extension=fileinfo");
       $content = $content.replace(";extension=mbstring","extension=mbstring");
       $content = $content.replace(";extension=openssl","extension=openssl");
-      $content = $content.replace(";extension=pdo_PostgreSQL","extension=pdo_PostgreSQL");
+      $content = $content.replace(";extension=pdo_pgsql","extension=pdo_pgsql");
+      $content = $content.replace(";extension=pdo_mysql","extension=pdo_mysql");
 
       set-content $iniPath $content;
+
+      $phpDirectory = $iniPath.replace("\php.ini","");
+      $phpPath = "$phpDirectory\php-cgi.exe";
+
+      New-WebHandler -Name "PHP_via_FastCGI" -Path "*.php" -ScriptProcessor "$phpPath" -Module FastCgiModule
+
+      # Set the max request environment variable for PHP
+      $configPath = "system.webServer/fastCgi/application[@fullPath='$php']/environmentVariables/environmentVariable"
+      $config = Get-WebConfiguration $configPath
+      if (!$config) {
+          $configPath = "system.webServer/fastCgi/application[@fullPath='$php']/environmentVariables"
+          Add-WebConfiguration $configPath -Value @{ 'Name' = 'PHP_FCGI_MAX_REQUESTS'; Value = 10050 }
+      }
+
+      # Configure the settings
+      # Available settings: 
+      #     instanceMaxRequests, monitorChangesTo, stderrMode, signalBeforeTerminateSeconds
+      #     activityTimeout, requestTimeout, queueLength, rapidFailsPerMinute, 
+      #     flushNamedPipe, protocol   
+      $configPath = "system.webServer/fastCgi/application[@fullPath='$phpPath']"
+      Set-WebConfigurationProperty $configPath -Name instanceMaxRequests -Value 10000
+      Set-WebConfigurationProperty $configPath -Name monitorChangesTo -Value '$phpDirectory\php.ini'
     }
 }
 
@@ -98,79 +121,52 @@ InstallIIs
 
 Install7z
 
-InstallGithubDesktop
-
 InstallWebPI
 
-$version = "8.0.13"
+$version = "8.3.1"
 InstallPhp $version;
 
-InstallWebPIPhp "PHP80x64,PostgreSQLConnector,UrlRewrite2,ARRv3_0"
+InstallWebPIPhp "PHP80x64,UrlRewrite2,ARRv3_0"
 
-ConfigurePhp "C:\tools\php80\php.ini";
 ConfigurePhp "C:\tools\php81\php.ini";
-ConfigurePhp "C:\Program Files\PHP\v8.0\php.ini";
+ConfigurePhp "C:\tools\php82\php.ini";
+ConfigurePhp "C:\tools\php83\php.ini";
+ConfigurePhp "C:\tools\php84\php.ini";
 
-$phpDirectory = "C:\tools\php80\";
-$phpPath = "$phpDirectory\php-cgi.exe";
+#will get port 5432
+InstallPostgres16
 
-Set-WebHandler -Name "PHP_via_FastCGI" -Path "*.php" -ScriptProcessor "$phpPath"
-
-# Set the max request environment variable for PHP
-$configPath = "system.webServer/fastCgi/application[@fullPath='$php']/environmentVariables/environmentVariable"
-$config = Get-WebConfiguration $configPath
-if (!$config) {
-    $configPath = "system.webServer/fastCgi/application[@fullPath='$php']/environmentVariables"
-    Add-WebConfiguration $configPath -Value @{ 'Name' = 'PHP_FCGI_MAX_REQUESTS'; Value = 10050 }
-}
-
-# Configure the settings
-# Available settings: 
-#     instanceMaxRequests, monitorChangesTo, stderrMode, signalBeforeTerminateSeconds
-#     activityTimeout, requestTimeout, queueLength, rapidFailsPerMinute, 
-#     flushNamedPipe, protocol   
-$configPath = "system.webServer/fastCgi/application[@fullPath='$phpPath']"
-Set-WebConfigurationProperty $configPath -Name instanceMaxRequests -Value 10000
-Set-WebConfigurationProperty $configPath -Name monitorChangesTo -Value '$phpDirectory\php.ini'
-
-InstallPostgreSQL14
-
-InstallPostgreSQL16
+#will get port 5433
+InstallPostgres14
 
 InstallPython "3.11";
 
 #install composer globally
+Write-Host "Install composer." -ForegroundColor Green -Verbose
 choco install composer
 
+Write-Host "Install opensll." -ForegroundColor Green -Verbose
 choco install openssl
 
 InstallPgAdmin
-
-#setup the sql database.
-
-.\psql -u root -e "GRANT ALL PRIVILEGES ON *.* TO 'wsuser'@'localhost' IDENTIFIED BY 'P@s`$w0rd123!';"
-.\psql -u root -e "CREATE DATABASE contosostore;"
 
 $extensions = @("ms-vscode-deploy-azure.azure-deploy", "ms-azuretools.vscode-docker", "ms-python.python", "ms-azuretools.vscode-azurefunctions");
 
 InstallVisualStudioCode $extensions;
 
-InstallVisualStudio "community";
+InstallVisualStudio "community" "2022";
 
-Install7Zip;
+Install7z;
 
 InstallFiddler;
 
 InstallPowerBI;
 
-#to add the user to docker group
-$global:localusername = "wsuser";
-
-InstallDockerDesktop $global:localusername;
-
 Uninstall-AzureRm -ea SilentlyContinue
 
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";C:\Program Files\PostgreSQL\16\bin"
+
+InstallGithubDesktop
 
 cd "c:\labfiles";
 
@@ -184,6 +180,28 @@ git clone https://github.com/solliancenet/$workshopName.git $workshopName
 
 ConfigurePhp "c:\tools\php80\php.ini";
 
+#setup the sql database.
+#get the database server name
+$servers = Get-AzPostgreSqlFlexibleServer -SubscriptionId $subscriptionId
+
+foreach($server in $servers)
+{
+  set PGPASSWORD="Solliance123"
+  $server = "$($server.name).postgres.database.azure.com"
+  psql -h $server -U wsuser -d postgres -c "CREATE DATABASE contosostore;"
+}
+
+$ipAddress = (Invoke-WebRequest -uri "http://ifconfig.me/ip" -UseBasicParsing).Content 
+
+$resourceGroups = Get-AzResourceGroup
+$ResourceGroupName = $resourceGroups[0].ResourceGroupName
+
+#add the VM ip address
+foreach($server in $servers)
+{
+  New-AzPostgreSqlFirewallRule -Name AllowMyIP -ServerName $server -ResourceGroupName $ResourceGroupName -StartIPAddress $ipAddress -EndIPAddress $ipAddress
+}
+
 $path = "C:\labfiles\$workshopName\sample-php-app";
 $port = "8080";
 AddPhpApplication $path $port;
@@ -191,5 +209,38 @@ AddPhpApplication $path $port;
 #run composer on app path
 cd "$path";
 composer install;
+
+$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
+
+if ($windowsVersion -like "*Windows Server 2019*")
+{
+    #for windows server 2019
+  Install-WindowsFeature -Name Hyper-V -IncludeManagementTools
+
+  Enable-WindowsOptionalFeature -Online -FeatureName $("Microsoft-Hyper-V", "Containers") -All
+
+  Enable-WindowsOptionalFeature -Online -FeatureName $("VirtualMachinePlatform","Microsoft-Windos-Subsystem-Linux") 
+
+  #set experminetal...
+  $content = '{
+    "experimental": true,
+    "debug": true,
+      "hosts":  [
+                    "npipe://"
+                ]
+  }'
+
+  set-content "C:\ProgramData\docker\config\daemon.json" $content;
+  restart-service docker;
+}
+else
+{
+  #for windows 10/11...
+
+  #to add the user to docker group
+  $global:localusername = "wsuser";
+
+  InstallDockerDesktop $global:localusername;
+}
 
 Stop-Transcript
