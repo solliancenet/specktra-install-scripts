@@ -114,7 +114,7 @@ $extensions = @("ms-vscode-deploy-azure.azure-deploy",
 
 InstallVisualStudioCode $extensions;
 
-InstallVisualStudio "community" "2022";
+#InstallVisualStudio "community" "2022";
 
 InstallGit
         
@@ -160,18 +160,26 @@ $databaseName = "airbnb"
 
 New-AzPostgreSqlFlexibleServerDatabase -Name $databaseName -ResourceGroupName $resourceGroup.ResourceGroupName -ServerName $serverName
 
+New-AzPostgreSqlFlexibleServerFirewallRule -FirewallRuleName [Guid]::newguid().tostring()  -StartIpAddress '0.0.0.0' -EndIpAddress '0.0.0.0' -ServerName $serverName  -ResourceGroupName $resourceGroup.ResourceGroupName
+
 # Template deployment
 $deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
+
+cd "c:\labfiles";
 
 $branchName = "main";
 $workshopName = "microsoft-postgres-docs-project";
 $repoUrl = "solliancenet/$workshopName";
+
+$env:Path += ';C:\Program Files\Git\bin'
 
 #download the git repo...
 Write-Host "Download Git repo." -ForegroundColor Green -Verbose
 git clone https://github.com/$repoUrl.git $workshopName
 
 $filePath = "c:\labfiles\$workshopName\artifacts\data\airbnb.sql"
+
+$env:Path += ';C:\Program Files\PostgreSQL\16\bin'
 
 #set the password
 $env:PGPASSWORD="Seattle123Seattle123"
