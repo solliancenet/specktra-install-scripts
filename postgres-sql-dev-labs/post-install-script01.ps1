@@ -160,7 +160,7 @@ $databaseName = "airbnb"
 
 New-AzPostgreSqlFlexibleServerDatabase -Name $databaseName -ResourceGroupName $resourceGroup.ResourceGroupName -ServerName $serverName
 
-New-AzPostgreSqlFlexibleServerFirewallRule -FirewallRuleName [Guid]::newguid().tostring()  -StartIpAddress '0.0.0.0' -EndIpAddress '0.0.0.0' -ServerName $serverName  -ResourceGroupName $resourceGroup.ResourceGroupName
+New-AzPostgreSqlFlexibleServerFirewallRule -FirewallRuleName $([Guid]::newguid().tostring())  -StartIpAddress '0.0.0.0' -EndIpAddress '0.0.0.0' -ServerName $serverName  -ResourceGroupName $resourceGroup.ResourceGroupName
 
 # Template deployment
 $deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
