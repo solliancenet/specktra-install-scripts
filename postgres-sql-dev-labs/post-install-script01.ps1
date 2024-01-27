@@ -98,23 +98,35 @@ EnableIEFileDownload
 
 InstallChocolaty
 
-InstallpgAdmin
-
-InstallPostgres16
-
 InstallAzPowerShellModule
 
 InstallChrome
 
 InstallNotepadPP
 
+InstallPgAdmin
+
+$extensions = @("ms-vscode-deploy-azure.azure-deploy", 
+  "ms-azuretools.vscode-docker", 
+  "ms-python.python", 
+  "ms-azuretools.vscode-azurefunctions",
+  "ms-vscode-remote.remote-wsl");
+
+InstallVisualStudioCode $extensions;
+
+InstallVisualStudio "community" "2022";
+
 InstallGit
         
 InstallAzureCli
 
-InstallVisualStudioCode
+#will get port 5432
+InstallPostgres16
 
-InstallPython "3.11"
+#will get port 5433
+InstallPostgres14
+
+InstallPython "3.11";
 
 Uninstall-AzureRm -ea SilentlyContinue
 
@@ -122,16 +134,47 @@ CreateLabFilesDirectory
 
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
 
-$organization = "solliancenet"
+cd "c:\labfiles";
+
+CreateCredFile $azureUsername $azurePassword $azureTenantID $azureSubscriptionID $deploymentId $odlId
+
+. C:\LabFiles\AzureCreds.ps1
+
+$userName = $AzureUserName                # READ FROM FILE
+$password = $AzurePassword                # READ FROM FILE
+$clientId = $TokenGeneratorClientId       # READ FROM FILE
+$global:sqlPassword = $AzureSQLPassword          # READ FROM FILE
+
+$securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
+$cred = new-object -typename System.Management.Automation.PSCredential -argumentlist $userName, $SecurePassword
+
+Connect-AzAccount -Identity
+
+$resourceGroups = Get-AzResourceGroup
+$resourceGroup = $resourceGroups[0]
+
+$servers = Get-AzPostgreSqlFlexibleServer
+$serverName = $servers[0].name
+
+$databaseName = "airbnb"
+
+New-AzPostgreSqlFlexibleServerDatabase -Name $databaseName -ResourceGroupName $resourceGroup.ResourceGroupName -ServerName $serverName
+
+# Template deployment
+$deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
+
+$branchName = "main";
 $workshopName = "microsoft-postgres-docs-project";
+$repoUrl = "solliancenet/$workshopName";
 
 #download the git repo...
 Write-Host "Download Git repo." -ForegroundColor Green -Verbose
-git clone https://github.com/$organization/$workshopName.git $workshopName
+git clone https://github.com/$repoUrl.git $workshopName
 
-InstallPostgres14
+$filePath = "c:\labfiles\$workshopName\artifacts\data\airbnb.sql"
 
-#this takes a long time...
-InstallDockerDesktop
+#set the password
+$env:PGPASSWORD="Seattle123Seattle123"
+psql -h "$($serverName).postgres.database.azure.com" -d $databaseName -U s2admin -p 5432 -a -w -f $filePath
 
 Stop-Transcript
