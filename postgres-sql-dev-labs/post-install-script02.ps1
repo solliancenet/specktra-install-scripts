@@ -85,7 +85,6 @@ mkdir "c:\labfiles" -ea SilentlyContinue;
 $WebClient = New-Object System.Net.WebClient;
 $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/common-workshop/main/scripts/common.ps1","C:\LabFiles\common.ps1")
 $WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/common-workshop/main/scripts/httphelper.ps1","C:\LabFiles\httphelper.ps1")
-$WebClient.DownloadFile("https://raw.githubusercontent.com/solliancenet/common-workshop/main/scripts/rundeployment.ps1","C:\LabFiles\rundeployment.ps1")
 
 #run the solliance package
 . C:\LabFiles\Common.ps1
@@ -100,6 +99,34 @@ EnableIEFileDownload
 InstallChocolaty
 
 InstallAzPowerShellModule
+
+InstallChrome
+
+InstallNotepadPP
+
+InstallPgAdmin
+
+$extensions = @("ms-vscode-deploy-azure.azure-deploy", 
+  "ms-azuretools.vscode-docker", 
+  "ms-python.python", 
+  "ms-azuretools.vscode-azurefunctions",
+  "ms-vscode-remote.remote-wsl");
+
+InstallVisualStudioCode $extensions;
+
+#InstallVisualStudio "community" "2022";
+
+InstallGit
+        
+InstallAzureCli
+
+#will get port 5432
+InstallPostgres16
+
+#will get port 5433
+InstallPostgres14
+
+InstallPython "3.11";
 
 Uninstall-AzureRm -ea SilentlyContinue
 
@@ -121,51 +148,41 @@ $global:sqlPassword = $AzureSQLPassword          # READ FROM FILE
 $securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
 $cred = new-object -typename System.Management.Automation.PSCredential -argumentlist $userName, $SecurePassword
 
-#do the deployment...
-Connect-AzAccount -Credential $cred | Out-Null
+Connect-AzAccount -Identity
+
+$resourceGroups = Get-AzResourceGroup
+$resourceGroup = $resourceGroups[0]
+
+$servers = Get-AzPostgreSqlFlexibleServer
+$serverName = $servers[0].name
+
+$databaseName = "airbnb"
+
+New-AzPostgreSqlFlexibleServerDatabase -Name $databaseName -ResourceGroupName $resourceGroup.ResourceGroupName -ServerName $serverName
+
+New-AzPostgreSqlFlexibleServerFirewallRule -FirewallRuleName $([Guid]::newguid().tostring())  -StartIpAddress '0.0.0.0' -EndIpAddress '0.0.0.0' -ServerName $serverName  -ResourceGroupName $resourceGroup.ResourceGroupName
 
 # Template deployment
-$rg = (Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -like "*-postgres" });
-$resourceGroupName = $rg.ResourceGroupName
-$region = $rg.Location;
-$deploymentId =  $rg.Tags["DeploymentId"]
+$deploymentId =  (Get-AzResourceGroup -Name $resourceGroupName).Tags["DeploymentId"]
 
-$sub = Get-AzSubscription;
-
-$subscriptionId = $sub.SubscriptionId;
-
-$resourceName = "pg$deploymentId";
+cd "c:\labfiles";
 
 $branchName = "main";
 $workshopName = "microsoft-postgres-docs-project";
-$repoUrl = "solliancenet/microsoft-postgres-docs-project";
+$repoUrl = "solliancenet/$workshopName";
+
+$env:Path += ';C:\Program Files\Git\bin'
 
 #download the git repo...
 Write-Host "Download Git repo." -ForegroundColor Green -Verbose
-git clone https://github.com/solliancenet/$workshopName.git $workshopName
+git clone https://github.com/$repoUrl.git $workshopName
 
-$templatesFile = "c:\labfiles\$workshopName\artifacts\environment-setup\automation\00-template.json"
-$parametersFile = "c:\labfiles\$workshopName\artifacts\environment-setup\spektra\deploy.parameters.post.json"
-$content = Get-Content -Path $parametersFile -raw;
+$filePath = "c:\labfiles\$workshopName\artifacts\data\airbnb.sql"
 
-$content = $content.Replace("GET-AZUSER-PASSWORD",$azurepassword);
-$content = $content | ForEach-Object {$_ -Replace "GET-AZUSER-UPN", "$AzureUsername"};
-$content = $content | ForEach-Object {$_ -Replace "GET-AZUSER-PASSWORD", "$AzurePassword"};
-$content = $content | ForEach-Object {$_ -Replace "GET-ODL-ID", "$deploymentId"};
-$content = $content | ForEach-Object {$_ -Replace "GET-DEPLOYMENT-ID", "$deploymentId"};
-$content = $content | ForEach-Object {$_ -Replace "GET-REGION", $region};
-$content = $content | ForEach-Object {$_ -Replace "ARTIFACTS-LOCATION", "https://raw.githubusercontent.com/$repoUrl/$branchName/artifacts/environment-setup/automation/"};
-$content | Set-Content -Path "$($parametersFile).json";
+$env:Path += ';C:\Program Files\PostgreSQL\16\bin'
 
-Write-Host "Executing main ARM deployment" -ForegroundColor Green -Verbose
-
-#OLD WAY...
-#New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName -TemplateFile $templatesFile -TemplateParameterFile "$($parametersFile).json";
-
-#will fire deployment async so the main deployment shows "succeeded"
-ExecuteDeployment $templatesFile "$($parametersFile).json" $resourceGroupName;
-
-#wait for storage to be created...
-WaitForResource $resourceGroupName $resourceName "Microsoft.Storage/storageAccounts" 1000;
+#set the password
+$env:PGPASSWORD="Seattle123Seattle123"
+psql -h "$($serverName).postgres.database.azure.com" -d $databaseName -U s2admin -p 5432 -a -w -f $filePath
 
 Stop-Transcript
